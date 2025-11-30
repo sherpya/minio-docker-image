@@ -6,6 +6,7 @@ ARG RELEASE=RELEASE.2025-09-07T16-13-09Z
 LABEL org.opencontainers.image.authors="sherpya@gmail.com"
 LABEL org.opencontainers.image.title="MinIO Docker Image"
 LABEL org.opencontainers.image.description="MinIO is a High Performance Object Storage, API compatible with Amazon S3 cloud storage service"
+LABEL org.opencontainers.image.source="https://github.com/sherpya/minio-docker-image"
 
 SHELL ["/bin/bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c"]
 
