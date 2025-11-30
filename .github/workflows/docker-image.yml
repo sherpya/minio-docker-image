@@ -1,0 +1,34 @@
+name: Build and Deploy DockerImage
+on: [push, workflow_dispatch]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  amd64:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract RELEASE version from Dockerfile
+        id: release
+        run: |
+          RELEASE=$(grep -oP 'ARG RELEASE=\K[^\s]+' Dockerfile)
+          echo "version=$RELEASE" >> $GITHUB_OUTPUT
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build image and push to registry
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          context: .
+          tags: |
+            ghcr.io/sherpya/minio-docker-image:latest
+            ghcr.io/sherpya/minio-docker-image:${{ steps.release.outputs.version }}
