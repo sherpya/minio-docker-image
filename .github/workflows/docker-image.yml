@@ -16,8 +16,8 @@ jobs:
       - name: Extract RELEASE version from Dockerfile
         id: release
         run: |
-          RELEASE=$(grep -oP 'ARG RELEASE=\K[^\s]+' Dockerfile)
-          echo "version=$RELEASE" >> $GITHUB_OUTPUT
+          MINIO_VERSION=$(grep -oP 'ARG MINIO_VERSION=\K[^\s]+' Dockerfile)
+          echo "version=$MINIO_VERSION" >> $GITHUB_OUTPUT
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:

@@ -1,7 +1,24 @@
-FROM debian:trixie-slim
+# Builder stage
+FROM golang:latest AS builder
 
-ARG TARGETARCH
-ARG RELEASE=RELEASE.2025-09-07T16-13-09Z
+ARG MINIO_VERSION=RELEASE.2025-10-15T17-29-55Z
+ARG MC_VERSION=RELEASE.2025-08-13T08-35-41Z
+ARG GOSU_VERSION=1.19
+
+# Build MinIO
+RUN go install -v -ldflags="-X github.com/minio/minio/cmd.Version=${MINIO_VERSION} -X github.com/minio/minio/cmd.ReleaseTag=${MINIO_VERSION}" github.com/minio/minio@${MINIO_VERSION}
+
+# Build mc
+RUN go install -v -ldflags="-X github.com/minio/mc/cmd.Version=${MC_VERSION} -X github.com/minio/mc/cmd.ReleaseTag=${MC_VERSION}" github.com/minio/mc@${MC_VERSION}
+
+# Build gosu
+RUN go install -v github.com/tianon/gosu@${GOSU_VERSION}
+
+# Strip binaries to reduce size
+RUN strip /go/bin/*
+
+# Final image
+FROM debian:trixie-slim
 
 LABEL org.opencontainers.image.authors="sherpya@gmail.com"
 LABEL org.opencontainers.image.title="MinIO Docker Image"
@@ -20,35 +37,12 @@ RUN apt-get update \
     /var/log/alternatives.log /var/log/apt \
     /var/cache/debconf/*-old /var/lib/dpkg/available-old
 
-# Download minio binary and signature
-RUN curl -s -q https://dl.min.io/server/minio/release/linux-${TARGETARCH}/archive/minio.${RELEASE} -o /usr/bin/minio && \
-    curl -s -q https://dl.min.io/server/minio/release/linux-${TARGETARCH}/archive/minio.${RELEASE}.sha256sum -o /usr/bin/minio.sha256sum && \
-    echo $(cut -f1 -d' ' /usr/bin/minio.sha256sum) /usr/bin/minio | sha256sum -c && \
-    rm -f /usr/bin/minio.sha256sum && \
-    chmod +x /usr/bin/minio
+# Copy binaries from builder
+COPY --from=builder /go/bin/minio /usr/bin/minio
+COPY --from=builder /go/bin/mc /usr/bin/mc
+COPY --from=builder /go/bin/gosu /usr/bin/gosu
 
-# Download mc binary and signature
-RUN curl -s -q https://dl.min.io/client/mc/release/linux-${TARGETARCH}/mc -o /usr/bin/mc && \
-    curl -s -q https://dl.min.io/client/mc/release/linux-${TARGETARCH}/mc.sha256sum -o /usr/bin/mc.sha256sum && \
-    echo $(cut -f1 -d' ' /usr/bin/mc.sha256sum) /usr/bin/mc | sha256sum -c - && \
-    rm -f /usr/bin/mc.sha256sum && \
-    chmod +x /usr/bin/mc
-
-# grab gosu for easy step-down from root
-# https://github.com/tianon/gosu/releases
-ARG GOSU_VERSION=1.19
-RUN set -eux; \
-    curl -s -q -L -o /usr/local/bin/gosu https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-${TARGETARCH}; \
-    curl -s -q -L -o /usr/local/bin/gosu.asc https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-${TARGETARCH}.asc; \
-    export GNUPGHOME="$(mktemp -d)"; \
-    gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
-    gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
-    gpgconf --kill all; \
-    rm -rf "$GNUPGHOME" /usr/local/bin/gosu.asc; \
-    chmod +x /usr/local/bin/gosu; \
-    gosu --version; \
-    gosu nobody true
-
+# Copy entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN useradd -ms /bin/bash minio
